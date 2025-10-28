@@ -1,13 +1,15 @@
-﻿// Lexer Rules
+﻿grammar SCP601;
+
+// Lexer Rules
 WS: [ \t\r\n]+ -> skip;
 TAB: '\t' -> skip;
 ENTER: '\r'? '\n' -> skip;
 
-COMMENT: '(*' .*? '*)' -> skip;
+COMMENT: '{*' .*? '*}' -> skip;
 LINE_COMMENT: '//' ~[\r\n]* -> skip;
 
 // Keywords
-BOOLEAN: 'Boolean';
+BOOLEAN: 'boolean';
 DOUBLE: 'double';
 INT: 'int';
 IF: 'if';
@@ -41,15 +43,17 @@ GT: '>';
 GE: '>=';
 AND: '&&';
 OR: '||';
+NOT: '!';
 INCREMENT: '++';
+DECREMENT: '--';
 
 // Identifiers and literals
 IDENTIFIER: [a-zA-Z][a-zA-Z0-9_]*;
-INTEGER: [0-9]+;
-REAL: [0-9]+ '.' [0-9]* ([eE] [+-]? [0-9]+)?
-    | '.' [0-9]+ ([eE] [+-]? [0-9]+)?
-    | [0-9]+ [eE] [+-]? [0-9]+
-    ;
+INTEGER: [0-9]| [1-9][0-9]+;
+REAL:
+	[0-9]+ '.' [0-9]* ([eE] [+-]? [0-9]+)?
+	| '.' [0-9]+ ([eE] [+-]? [0-9]+)?
+	| [0-9]+ [eE] [+-]? [0-9]+;
 
 // Punctuation
 LPAREN: '(';
@@ -62,7 +66,9 @@ DOT: '.';
 COLON: ':';
 
 // Parser Rules
-program: PROGRAM IDENTIFIER LBRACE member* RBRACE EOF;
+program: entry;
+
+entry: PROGRAM IDENTIFIER LBRACE member* RBRACE EOF;
 
 member: function | struct | global;
 
@@ -71,7 +77,8 @@ function: (type | VOID) IDENTIFIER LPAREN arguments? RPAREN LBRACE statement* RB
 arguments: argument (COMMA argument)*;
 argument: type IDENTIFIER;
 
-struct: STRUCT IDENTIFIER (COLON IDENTIFIER)? LBRACE struct_members RBRACE;
+struct:
+	STRUCT IDENTIFIER (COLON IDENTIFIER)? LBRACE struct_members RBRACE;
 struct_members: (STATIC? type variable SEMI)*;
 
 global: type variables SEMI;
@@ -80,37 +87,46 @@ variable: IDENTIFIER | IDENTIFIER ASSIGN expression;
 
 type: BOOLEAN | INT | DOUBLE | IDENTIFIER;
 
-expression: 
-    expression DOT IDENTIFIER
-    | expression DOT IDENTIFIER ASSIGN expression
-    | IDENTIFIER LPAREN expr_list? RPAREN
-    | expression binaryOp expression
-    | INTEGER
-    | REAL
-    | TRUE
-    | FALSE
-    | NULL
-    | IDENTIFIER
-    | IDENTIFIER ASSIGN expression
-    | LPAREN expression RPAREN
-    | (PLUS | MINUS) expression
-    ;
+expression:
+	expression DOT IDENTIFIER						# dotIdentifierExpression
+	| expression DOT IDENTIFIER ASSIGN expression	# dotIdentifierAssignExpression
+	| IDENTIFIER LPAREN expr_list? RPAREN			# functionCallExpression
+	| expression multypleOp expression				# multiplicativeExpression
+	| expression additiveOp expression				# additiveExpression
+	| expression compareOp expression				# comparisonExpression
+	| expression logicalOp expression				# logicalExpression
+	| INTEGER										# integerExpression
+	| REAL											# realExpression
+	| TRUE											# trueExpression
+	| FALSE											# falseExpression
+	| NULL											# nullExpression
+	| IDENTIFIER									# identifierExpression
+	| IDENTIFIER ASSIGN expression					# identifierAssignExpression
+	| LPAREN expression RPAREN						# parenthesizedExpression
+	| unaryOp expression							# unaryExpression
+	| expression (INCREMENT | DECREMENT)			# postFixExpression
+	| (INCREMENT | DECREMENT) expression			# preFixExpression;
 
 expr_list: expression (COMMA expression)*;
 
-binaryOp: 
-    EQ | NEQ | LT | LE | GT | GE | 
-    PLUS | MINUS | MULT | DIV | MOD | AND | OR;
+unaryOp: PLUS | MINUS | NOT;
+
+multypleOp: MULT | DIV | MOD;
+
+additiveOp: PLUS | MINUS;
+
+compareOp: EQ | NEQ | LT | LE | GT | GE;
+
+logicalOp: AND | OR;
 
 statement:
-    IF LPAREN expression RPAREN statement
-    | IF LPAREN expression RPAREN statement ELSE statement
-    | WHILE LPAREN expression RPAREN statement
-    | FOR LPAREN type variables SEMI expression? SEMI expression? RPAREN statement
-    | WITH LPAREN IDENTIFIER RPAREN statement
-    | expression SEMI
-    | type variables SEMI
-    | SEMI
-    | LBRACE statement* RBRACE
-    | RETURN expression? SEMI
-    ;
+	IF LPAREN expression RPAREN statement											# ifStatement
+	| IF LPAREN expression RPAREN statement ELSE statement							# ifElseStatement
+	| WHILE LPAREN expression RPAREN statement										# whileStatement
+	| FOR LPAREN type variables SEMI expression? SEMI expression? RPAREN statement	# forStatement
+	| WITH LPAREN IDENTIFIER RPAREN statement										# withStatement
+	| expression SEMI																# expressionStatement
+	| type variables SEMI															# variableDeclarationStatement
+	| SEMI																			# emptyStatement
+	| LBRACE statement* RBRACE														# blockStatement
+	| RETURN expression? SEMI														# returnStatement;
